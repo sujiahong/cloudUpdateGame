@@ -1,17 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
-	"bufio"
-	"io"
 )
 
-func main()  {
+func main() {
 	f, err := os.Open("log")
 	fmt.Println(f, err)
-	if (err != nil){
+	if err != nil {
 		return
 	}
 	defer f.Close()
@@ -24,7 +24,7 @@ func main()  {
 	for _, info := range arr {
 		fmt.Println(info.Name(), info.IsDir())
 		strArr := strings.Split(info.Name(), "-")
-		if (strArr[0] == "kupdate"){
+		if strArr[0] == "kupdate" {
 			fileNameArr = append(fileNameArr, info.Name())
 		}
 	}
@@ -38,11 +38,19 @@ func main()  {
 	defer fd.Close()
 	br := bufio.NewReader(fd)
 	for {
-		arrByte, err := br.ReadString('\n')
-		if (err == io.EOF){
+		str, err := br.ReadString('\n')
+		if err == io.EOF {
 			break
 		}
-		fmt.Println(arrByte)
+		fmt.Println(str)
+		idx := strings.Index(str, "start download")
+		if idx > -1 {
+
+		}
+		idx = strings.Index(str, "download complete")
+		if idx > -1 {
+
+		}
 	}
 	// f, err = os.Open("golang.org/" + arr[0].Name())
 	// fmt.Println(f, err)
