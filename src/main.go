@@ -7,13 +7,14 @@ import (
 	"io"
 	"os"
 	"strings"
+
 	//"bytes"
 	"unicode/utf16"
 )
 
-func utf16ToString(b []byte, bom int) (string){
+func utf16ToString(b []byte, bom int) string {
 	if len(b) >= 2 {
-		switch n:=uint16(b[0])<<8 | uint16(b[1]); n {
+		switch n := uint16(b[0])<<8 | uint16(b[1]); n {
 		case 0xfffe:
 			fallthrough
 		case 0xfeff:
@@ -58,6 +59,16 @@ func main() {
 		return
 	}
 	defer fd.Close()
+	type TContent struct {
+		id        string
+		name      string
+		stat      string
+		startTime string
+		endTime   string
+		size      uint32
+	}
+	var idInfoData map[string]TContent
+	idInfoData = make(map[string]TContent)
 	br := bufio.NewReader(fd)
 	for {
 		byteArr, _, ed := br.ReadLine()
@@ -69,19 +80,28 @@ func main() {
 		idx := strings.Index(str, "start download")
 		if idx > -1 {
 			timeStr := str[0:8]
-			fmt.Println(timeStr)
+			endIdx := strings.Index(str, "]")
+			idNameStr := str[10:endIdx]
+			strArr := strings.Split(idNameStr, ":")
+			content := TContent{strArr[0], strArr[1], "start", timeStr, "0", 0}
+			idInfoData[strArr[0]] = content
+			fmt.Println(timeStr, idNameStr, strArr, idInfoData)
 		}
 		idx = strings.Index(str, "download complete")
 		if idx > -1 {
 			timeStr := str[:8]
-			fmt.Println(timeStr)
+			endIdx := strings.Index(str, "]")
+			idNameStr := str[10:endIdx]
+			strArr := strings.Split(idNameStr, ":")
+			// content := TContent{strArr[0], strArr[1], "end", timeStr, 0}
+			content, ok := idInfoData[strArr[0]]
+			if ok {
+				content.stat = "end"
+				content.endTime = timeStr
+			} else {
+				fmt.Println(strArr)
+			}
+			//fmt.Println(timeStr, idNameStr, strArr, content, ok)
 		}
 	}
-	// f, err = os.Open("golang.org/" + arr[0].Name())
-	// fmt.Println(f, err)
-	// arr, e = f.Readdir(0)
-	// fmt.Println(arr, len(arr), e)
-	// for _, info := range arr {
-	// 	fmt.Println(info.Name(), info.IsDir())
-	// }
 }
