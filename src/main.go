@@ -7,10 +7,15 @@ import (
 	"io"
 	"os"
 	"strings"
-
+	"time"
+	"strconv"
 	//"bytes"
 	"unicode/utf16"
+	//"net/http"
+	//"io/ioutil"
+	"encoding/json"
 )
+const IP_PORT = "121.40.111.19:443"
 
 func utf16ToString(b []byte, bom int) string {
 	if len(b) >= 2 {
@@ -31,21 +36,43 @@ func utf16ToString(b []byte, bom int) string {
 	return string(utf16.Decode(utf16Arr))
 }
 
-func main() {
+type TContent struct {
+	id        string
+	name      string
+	stat      string
+	startTime int64
+	endTime   int64
+	sizeStr   string
+}
+
+func getIDNameArrAndTime(str string, year int, month int, day int) ([]string, int64) {
+	timeStr := str[0:8]
+	timeStrArr := strings.Split(timeStr, ":")
+	var h, _ = strconv.Atoi(timeStrArr[0])
+	var m, _ = strconv.Atoi(timeStrArr[1])
+	var s, _ = strconv.Atoi(timeStrArr[2])
+	var tTime = time.Date(year, time.Month(month), day, h, m, s, 0, time.UTC)
+	var unixTime = tTime.Unix()
+	endIdx := strings.Index(str, "]")
+	idNameStr := str[10:endIdx]
+	strArr := strings.Split(idNameStr, ":")
+	return strArr, unixTime
+}
+
+func parseFile(idInfoData map[string]TContent) {
 	f, err := os.Open("log")
 	fmt.Println(f, err)
 	if err != nil {
 		return
 	}
 	defer f.Close()
-	arr, e := f.Readdir(0)
-	if e != nil {
+	arr, err := f.Readdir(0)
+	if err != nil {
 		return
 	}
 	var fileNameArr []string
-	fmt.Println(arr, len(arr), e)
+	fmt.Println(arr, len(arr), err)
 	for _, info := range arr {
-		fmt.Println(info.Name(), info.IsDir())
 		strArr := strings.Split(info.Name(), "-")
 		if strArr[0] == "kupdate" {
 			fileNameArr = append(fileNameArr, info.Name())
@@ -59,16 +86,10 @@ func main() {
 		return
 	}
 	defer fd.Close()
-	type TContent struct {
-		id        string
-		name      string
-		stat      string
-		startTime string
-		endTime   string
-		size      uint32
-	}
-	var idInfoData map[string]TContent
-	idInfoData = make(map[string]TContent)
+	var year, _ = strconv.Atoi(fileName[8:12])
+	var month, _ = strconv.Atoi(fileName[12:14])
+	var day, _ = strconv.Atoi(fileName[14:16])
+	fmt.Println(time.Now(), year, month, day)
 	br := bufio.NewReader(fd)
 	for {
 		byteArr, _, ed := br.ReadLine()
@@ -76,32 +97,70 @@ func main() {
 			break
 		}
 		str := utf16ToString(byteArr, 1)
-		fmt.Println(str, ed)
 		idx := strings.Index(str, "start download")
 		if idx > -1 {
-			timeStr := str[0:8]
-			endIdx := strings.Index(str, "]")
-			idNameStr := str[10:endIdx]
-			strArr := strings.Split(idNameStr, ":")
-			content := TContent{strArr[0], strArr[1], "start", timeStr, "0", 0}
-			idInfoData[strArr[0]] = content
-			fmt.Println(timeStr, idNameStr, strArr, idInfoData)
+			strArr, unixTime := getIDNameArrAndTime(str, year, month, day)
+			content, ok := idInfoData[strArr[0]]
+			if ok {
+				if (content.stat == "end" && content.endTime < unixTime){
+					content.stat = "start"
+					content.startTime = unixTime
+				}else{
+					fmt.Println("游戏无新更新 ", strArr)
+				}
+			} else {
+				fmt.Println("22222222")
+				idInfoData[strArr[0]] = TContent{strArr[0], strArr[1], "start", unixTime, 0, "0M"}
+			}
+			
 		}
 		idx = strings.Index(str, "download complete")
 		if idx > -1 {
-			timeStr := str[:8]
-			endIdx := strings.Index(str, "]")
-			idNameStr := str[10:endIdx]
-			strArr := strings.Split(idNameStr, ":")
-			// content := TContent{strArr[0], strArr[1], "end", timeStr, 0}
+			strArr, unixTime := getIDNameArrAndTime(str, year, month, day)
 			content, ok := idInfoData[strArr[0]]
 			if ok {
-				content.stat = "end"
-				content.endTime = timeStr
+				if (content.stat == "start" && content.endTime < unixTime){
+					content.stat = "end"
+					content.endTime = unixTime
+					content.sizeStr = str[idx+32:]
+				}
 			} else {
-				fmt.Println(strArr)
+				fmt.Println("没有start，直接end", strArr)
 			}
-			//fmt.Println(timeStr, idNameStr, strArr, content, ok)
 		}
+	}
+}
+
+
+func main(){
+	var idInfoData map[string]TContent
+	idInfoData = make(map[string]TContent)
+	item := map[string]string{
+		"gdc_ip": "",
+		"gdc_hostname": "",
+		"steam_app_id": "",
+		"gloud_game_id": "",
+		"hotorcold": "0",
+		"game_dir": "0",
+		"hdisk": "0",
+		"cdisk": "0",
+		"status": "0",
+		"bytestodownload": "0",
+		"sizeondisk": "0",
+		"pre_buildid": "0",
+		"current_buildid": "0",
+		"steam_user_id": "",
+		"steam_user_password": "",
+		"priority": "",
+		"update_time": "0"}
+	byteArr, err := json.Marshal(item)
+	fmt.Println(string(byteArr), err)
+	// response, err := http.Get(fmt.Sprintf("http://%s/update_hoc_gdc?op_token=gloudhotorcoldtoken&content=%s", IP_PORT, string(byteArr)))
+	// defer response.Body.Close()
+	// body, err := ioutil.ReadAll(response.Body)
+	// fmt.Println(body)
+	for{
+		parseFile(idInfoData)
+		time.Sleep(10*time.Second)
 	}
 }
