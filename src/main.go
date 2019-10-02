@@ -6,16 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
+
 	//"bytes"
 	"unicode/utf16"
 	//"net/http"
-	//"io/ioutil"
-	"encoding/json"
 )
-const IP_PORT = "121.40.111.19:443"
 
 func utf16ToString(b []byte, bom int) string {
 	if len(b) >= 2 {
@@ -36,6 +34,7 @@ func utf16ToString(b []byte, bom int) string {
 	return string(utf16.Decode(utf16Arr))
 }
 
+// 存储更新content.
 type TContent struct {
 	id        string
 	name      string
@@ -66,23 +65,20 @@ func parseFile(idInfoData map[string]TContent) {
 		return
 	}
 	defer f.Close()
-	arr, err := f.Readdir(0)
+	now := time.Now()
+	nowYear, nowMonth, nowDay := now.Date()
+	formatStr := "%d%d%d"
+	if nowMonth < 10 && nowDay < 10 {
+		formatStr = "%d0%d0%d"
+	} else if nowMonth < 10 {
+		formatStr = "%d0%d%d"
+	} else if nowDay < 10 {
+		formatStr = "%d%d0%d"
+	}
+	fileName := "kupdate-" + fmt.Sprintf(formatStr, nowYear, nowMonth, nowDay) + ".log"
+	fd, err := os.Open("log/" + fileName)
+	fmt.Println(fd, err)
 	if err != nil {
-		return
-	}
-	var fileNameArr []string
-	fmt.Println(arr, len(arr), err)
-	for _, info := range arr {
-		strArr := strings.Split(info.Name(), "-")
-		if strArr[0] == "kupdate" {
-			fileNameArr = append(fileNameArr, info.Name())
-		}
-	}
-	fmt.Println(fileNameArr)
-	var fileName = fileNameArr[len(fileNameArr)-1]
-	fd, er := os.Open("log/" + fileName)
-	fmt.Println(fd, er)
-	if er != nil {
 		return
 	}
 	defer fd.Close()
@@ -92,8 +88,8 @@ func parseFile(idInfoData map[string]TContent) {
 	fmt.Println(time.Now(), year, month, day)
 	br := bufio.NewReader(fd)
 	for {
-		byteArr, _, ed := br.ReadLine()
-		if ed == io.EOF {
+		byteArr, _, err := br.ReadLine()
+		if err == io.EOF {
 			break
 		}
 		str := utf16ToString(byteArr, 1)
@@ -102,24 +98,25 @@ func parseFile(idInfoData map[string]TContent) {
 			strArr, unixTime := getIDNameArrAndTime(str, year, month, day)
 			content, ok := idInfoData[strArr[0]]
 			if ok {
-				if (content.stat == "end" && content.endTime < unixTime){
+				if content.stat == "end" && content.endTime < unixTime {
 					content.stat = "start"
 					content.startTime = unixTime
-				}else{
+					//notifyGameUpdate()
+				} else {
 					fmt.Println("游戏无新更新 ", strArr)
 				}
 			} else {
 				fmt.Println("22222222")
 				idInfoData[strArr[0]] = TContent{strArr[0], strArr[1], "start", unixTime, 0, "0M"}
 			}
-			
+
 		}
 		idx = strings.Index(str, "download complete")
 		if idx > -1 {
 			strArr, unixTime := getIDNameArrAndTime(str, year, month, day)
 			content, ok := idInfoData[strArr[0]]
 			if ok {
-				if (content.stat == "start" && content.endTime < unixTime){
+				if content.stat == "start" && content.endTime < unixTime {
 					content.stat = "end"
 					content.endTime = unixTime
 					content.sizeStr = str[idx+32:]
@@ -131,36 +128,11 @@ func parseFile(idInfoData map[string]TContent) {
 	}
 }
 
-
-func main(){
+func main() {
 	var idInfoData map[string]TContent
 	idInfoData = make(map[string]TContent)
-	item := map[string]string{
-		"gdc_ip": "",
-		"gdc_hostname": "",
-		"steam_app_id": "",
-		"gloud_game_id": "",
-		"hotorcold": "0",
-		"game_dir": "0",
-		"hdisk": "0",
-		"cdisk": "0",
-		"status": "0",
-		"bytestodownload": "0",
-		"sizeondisk": "0",
-		"pre_buildid": "0",
-		"current_buildid": "0",
-		"steam_user_id": "",
-		"steam_user_password": "",
-		"priority": "",
-		"update_time": "0"}
-	byteArr, err := json.Marshal(item)
-	fmt.Println(string(byteArr), err)
-	// response, err := http.Get(fmt.Sprintf("http://%s/update_hoc_gdc?op_token=gloudhotorcoldtoken&content=%s", IP_PORT, string(byteArr)))
-	// defer response.Body.Close()
-	// body, err := ioutil.ReadAll(response.Body)
-	// fmt.Println(body)
-	for{
+	for {
 		parseFile(idInfoData)
-		time.Sleep(10*time.Second)
+		time.Sleep(1 * time.Second)
 	}
 }
