@@ -3,6 +3,7 @@ package main
 import (
 	//"errors"
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -76,7 +77,7 @@ func parseFile(idInfoData map[string]TContent) {
 		formatStr = "%d%d0%d"
 	}
 	fileName := "kupdate-" + fmt.Sprintf(formatStr, nowYear, nowMonth, nowDay) + ".log"
-	fd, err := os.Open("log/" + fileName)
+	fd, err := os.Open("C:\\kserver\\log\\" + fileName)
 	fmt.Println(fd, err)
 	if err != nil {
 		return
@@ -128,11 +129,56 @@ func parseFile(idInfoData map[string]TContent) {
 	}
 }
 
-func main() {
-	var idInfoData map[string]TContent
-	idInfoData = make(map[string]TContent)
-	for {
-		parseFile(idInfoData)
-		time.Sleep(1 * time.Second)
+func isGameUpdating(name *string) bool {
+	now := time.Now()
+	nowYear, nowMonth, nowDay := now.Date()
+	formatStr := "%d%d%d"
+	if nowMonth < 10 && nowDay < 10 {
+		formatStr = "%d0%d0%d"
+	} else if nowMonth < 10 {
+		formatStr = "%d0%d%d"
+	} else if nowDay < 10 {
+		formatStr = "%d%d0%d"
 	}
+	fileName := "kupdate-" + fmt.Sprintf(formatStr, nowYear, nowMonth, nowDay) + ".log"
+	fd, err := os.Open("log\\" + fileName)
+	if err != nil {
+		return false
+	}
+	defer fd.Close()
+	// var year, _ = strconv.Atoi(fileName[8:12])
+	// var month, _ = strconv.Atoi(fileName[12:14])
+	// var day, _ = strconv.Atoi(fileName[14:16])
+	// fmt.Println("222222222     ", time.Now(), year, month, day)
+	br := bufio.NewReader(fd)
+	var updateStat = false
+	for {
+		byteArr, _, err := br.ReadLine()
+		if err == io.EOF {
+			break
+		}
+		str := utf16ToString(byteArr, 1)
+		idx := strings.Index(str, *name)
+		if idx > -1 {
+			arr := strings.Split(str, ":")
+			l := len(arr)
+			if strings.Index(arr[l-1], "start download") > -1 {
+				updateStat = true
+			} else if arr[l-2] == "download complete, update total" {
+				updateStat = false
+			}
+		}
+	}
+	return updateStat
+}
+
+func main() {
+	gameName := flag.String("name", "英雄联盟", "指定查找的游戏！")
+	flag.Parse()
+	fmt.Println("dddd   ", *gameName, flag.Args())
+	if isGameUpdating(gameName) {
+		os.Exit(1)
+	}
+	fmt.Println("11111111111111")
+	os.Exit(0)
 }
