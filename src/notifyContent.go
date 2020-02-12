@@ -7,8 +7,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 func requestSMSSocket() (string, error) {
@@ -69,7 +69,7 @@ func notifyGameInfoHistory(timestamp, gameName, gid, state string, size uint64) 
 		"launcher":            "m",
 		"status":              state,
 		"bytestodownload":     sizeStr,
-		"sizeondisk":          "0",
+		"sizeondisk":          "15892631552",
 		"pre_buildid":         timestamp,
 		"current_buildid":     timestamp,
 		"steam_user_id":       "",
